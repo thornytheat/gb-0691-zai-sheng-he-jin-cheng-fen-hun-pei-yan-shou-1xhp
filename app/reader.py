@@ -1,5 +1,5 @@
 import csv, io
-from app.config import HEADERS, LIMIT
+from app.config import HEADERS, REQUIRED_HEADERS, LIMIT
 from app.errors import DomainError
 from app.reasons import isolate
 def decode(raw):
@@ -15,8 +15,8 @@ def read_rows(ctx):
     except csv.Error: raise DomainError('STRUCTURE','表头损坏')
     if head is None: raise DomainError('BLANK','文件仅有空行')
     head=[x.strip() for x in head]
-    if set(head)!=set(HEADERS) or len(head)!=len(HEADERS):
-        raise DomainError('HEADER','字段缺失或重复')
+    if not set(REQUIRED_HEADERS)<=set(head) or not set(head)<=set(HEADERS) or len(head)!=len(set(head)):
+        raise DomainError('HEADER','字段缺失、重复或未知')
     rows=[];ctx['input_count']=0;ctx['blank_count']=0;ctx['header_count']=0
     try:
         for cells in reader:
@@ -26,7 +26,10 @@ def read_rows(ctx):
             ctx['input_count']+=1
             if len(cells)!=len(head):
                 isolate(ctx,{'行号':reader.line_num,'原值':'|'.join(cells)},'COLUMNS','列数不符');continue
-            rows.append({**dict(zip(head,[x.strip() for x in cells])), '行号':reader.line_num})
+            row=dict(zip(head,[x.strip() for x in cells]))
+            row.setdefault('price','')
+            row['行号']=reader.line_num
+            rows.append(row)
     except csv.Error: raise DomainError('STRUCTURE','引号未闭合或记录截断')
     if not rows and not ctx['quarantine']: raise DomainError('HEADER_ONLY' if not ctx['blank_count'] else 'BLANK','文件没有业务记录')
     ctx['rows']=rows

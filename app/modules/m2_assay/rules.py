@@ -1,4 +1,4 @@
-from app.domain import mass_kg,assay_bounds
+from app.domain import mass_kg,assay_bounds,unit_price
 from app.numeric import number,fmt
 from app.errors import DomainError
 from app.reasons import isolate
@@ -14,13 +14,14 @@ def apply(ctx):
             low,high=assay_bounds(r['assay']);dry=mass*(1-water/100)
             if r['basis']=='wet': low,high=low/(1-water/100),high/(1-water/100)
             if high>100: raise DomainError('RANGE','转换后含量大于100%')
-            key=(r['batch'],r['lot'],r['element']);fingerprint=(mass,water,low,high,r['revision'])
+            price=unit_price(r.get('price'))
+            key=(r['batch'],r['lot'],r['element']);fingerprint=(mass,water,low,high,r['revision'],price)
             if key in seen:
                 if seen[key]==fingerprint: duplicates+=1
                 else: isolate(ctx,r,'CONFLICT','同一批元素数值不一致')
                 continue
             seen[key]=fingerprint
-            accepted.append({**r,'dry_mass':str(dry),'low':str(low),'high':str(high)})
+            accepted.append({**r,'dry_mass':str(dry),'wet_mass':str(mass),'low':str(low),'high':str(high),'price':'' if price is None else str(price)})
         except DomainError as e: isolate(ctx,r,e.code,e.message)
     ctx['normalized']=accepted;ctx['duplicates']=duplicates
     return {'rows':accepted,'metrics':[['有效成分',len(accepted),'条'],['隔离',len(ctx['quarantine']),'条'],['重复',duplicates,'条']]}

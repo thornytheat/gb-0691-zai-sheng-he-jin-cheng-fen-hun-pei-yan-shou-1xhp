@@ -1,2 +1,18 @@
 {% extends 'base.html' %}
 {% block stage_visual %}{% for r in run.acceptance %}<p>{{r["元素"]}}　<strong>{{r["验收"]}}</strong></p>{% endfor %}{% endblock %}
+{% block extra %}
+<section class="panel span-all">
+  <div class="panel__head"><h2>按领料用量重算验收</h2><span>{% if requisition %}{{requisition.option_label}} · {{requisition.check.label}}{% else %}未确认领料方案{% endif %}</span></div>
+  <div class="panel__body">
+  {% if not requisition %}<p class="muted">尚未确认领料方案；上表验收按全部可配料计算。到 <a href="/work/8?run_id={{run.manifest.run_id}}">08 领料方案</a> 选择并确认后可重算。</p>
+  {% elif requisition.check.status=='invalid' %}<p class="alert">{{requisition.acceptance.notes|join(' ')}}</p>
+  {% else %}
+    <div class="kpis">{% for m in requisition.acceptance.metrics %}<div class="kpi"><span>{{m[0]}}</span><b>{{m[1]|display}} <small>{{m[2]}}</small></b></div>{% endfor %}</div>
+    <div class="scroll"><table><thead><tr><th>元素</th><th>干重_kg</th><th>元素下界_kg</th><th>元素上界_kg</th><th>含量下界_pct</th><th>含量上界_pct</th><th>下限_pct</th><th>上限_pct</th><th>验收</th></tr></thead><tbody>{% for r in requisition.acceptance.rows %}<tr><td>{{r['元素']}}</td><td>{{r['干重_kg']}}</td><td>{{r['元素下界_kg']}}</td><td>{{r['元素上界_kg']}}</td><td>{{r['含量下界_pct']}}</td><td>{{r['含量上界_pct']}}</td><td>{{r['下限_pct']}}</td><td>{{r['上限_pct']}}</td><td class="{{'sev--severe' if r['验收']!='通过'}}">{{r['验收']}}</td></tr>{% endfor %}</tbody></table></div>
+    {% if requisition.acceptance.notes %}<div>{% for note in requisition.acceptance.notes %}<p class="muted">{{note}}</p>{% endfor %}</div>{% endif %}
+    {% if requisition.check.status=='stale' %}<div class="alert">晚到化验记录改变了原方案：{{requisition.check.label}}。{% for c in requisition.check.changes %}{{c['批号']}} {{c['原用量_kg']}} → {{c['新用量_kg']}} kg；{% endfor %}</div>
+    <div class="controls"><button id="reconfirm" data-run="{{run.manifest.run_id}}" data-option="{{requisition.option_key}}" class="primary">按新用量重算并重确认</button></div>{% endif %}
+  {% endif %}
+  </div>
+</section>
+{% endblock %}

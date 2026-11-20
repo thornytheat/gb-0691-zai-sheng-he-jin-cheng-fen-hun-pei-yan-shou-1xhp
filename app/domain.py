@@ -7,12 +7,21 @@ def mass_kg(value,unit):
     value=number(value)*(1000 if unit=='t' else 1)
     if value<=0: raise DomainError('RANGE','重量必须大于零')
     return value
+def unit_price(value):
+    """单价按元/kg。空值返回 None（表示缺价），格式或范围错误抛 DomainError。"""
+    if value in (None,''): return None
+    price=number(value)
+    if price<0: raise DomainError('RANGE','单价不能为负')
+    return price
 def assay_bounds(value):
     if value.startswith('<'):
         upper=number(value[1:]);low=Decimal(0)
     else: low=upper=number(value)
     if not 0<=low<=upper<=100: raise DomainError('RANGE','元素含量超出范围')
     return low,upper
+def verdict(element,low,high):
+    lo,hi=TARGETS[element]
+    return '通过' if lo<=low<=high<=hi else '不合格' if high<lo or low>hi else '待补测'
 def blend(rows):
     lots={r['lot']:number(r['dry_mass']) for r in rows};total=sum(lots.values(),Decimal(0))
     answer=[]

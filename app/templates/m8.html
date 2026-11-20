@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block stage_visual %}
+{% if plan.feasible %}
+<div class="muted">整批发料 · 不拆包 · 订单 {{plan.order_kg}} kg</div>
+{% set maxcost = plan.options|map(attribute='总成本_元')|map('float')|max %}
+{% for o in plan.options %}<div class="range"><span>{{o.label}}</span><div class="range-track"><i style="left:0;width:{{(o.总成本_元|float/maxcost*100)|round(1)}}%"></i></div><span>{{o.总成本_元}} 元 · 超 {{o.超出订单_kg}} kg</span></div>{% endfor %}
+{% else %}<div class="empty">{{plan.notes|join(' ')}}</div>{% endif %}
+{% endblock %}
+{% block extra %}
+<section class="panel span-all">
+  <div class="panel__head"><h2>领料方案对比</h2><span>少花钱 ↔ 少剩料</span></div>
+  <div class="panel__body"><div class="controls"><label>订单 <input id="order-kg" type="number" min="1" step="1" value="{{plan.order_kg or default_order}}" aria-label="订单千克"> kg</label><button id="reorder">按此订单重算方案</button></div></div>
+  <div class="scroll">{% if current.rows %}<table><thead><tr>{% for key in current.rows[0] %}<th>{{key}}</th>{% endfor %}</tr></thead><tbody>{% for row in current.rows %}<tr>{% for value in row.values() %}<td title="{{value}}">{{value|display}}</td>{% endfor %}</tr>{% endfor %}</tbody></table>{% else %}<div class="empty">没有同时满足订单量与 Cu/Zn 区间的整批组合。</div>{% endif %}</div>
+  {% if plan.notes %}<div class="panel__body">{% for note in plan.notes %}<p class="muted">{{note}}</p>{% endfor %}</div>{% endif %}
+</section>
+{% if plan.feasible %}
+<section class="panel span-all">
+  <div class="panel__head"><h2>可执行领料单</h2><span>确认后验收按此用量重算</span></div>
+  <div class="panel__body">
+    <div class="controls">{% for o in plan.options %}<button data-plan="{{o.key}}" class="{{'primary' if requisition and requisition.option_key==o.key}}">{{o.label}} · {{o.总成本_元}} 元 · 超 {{o.超出订单_kg}} kg</button>{% endfor %}</div>
+    {% if requisition %}<p class="muted">已确认：{{requisition.option_label}} · r{{requisition.revision}} · {{requisition.check.label}}</p>{% endif %}
+    <div id="plan-feedback" role="status" class="alert"></div>
+  </div>
+  {% for o in plan.options %}
+  <div class="panel__head"><h3>{{o.label}} · {{o.领料总量_kg}} kg · 超订单 {{o.超出订单_kg}} kg · {{o.总成本_元}} 元</h3><span>{{o.批数}} 批</span></div>
+  <div class="scroll"><table><thead><tr><th>炉次</th><th>批号</th><th>领料重量_kg</th><th>干重_kg</th><th>单价_元每kg</th><th>金额_元</th><th>Cu含量_pct</th><th>Zn含量_pct</th></tr></thead><tbody>{% for r in plan.option_rows[o.key] %}<tr><td>{{r['炉次']}}</td><td>{{r['批号']}}</td><td>{{r['领料重量_kg']}}</td><td>{{r['干重_kg']}}</td><td>{{r['单价_元每kg']}}</td><td>{{r['金额_元']}}</td><td>{{r['Cu含量_pct']}}</td><td>{{r['Zn含量_pct']}}</td></tr>{% endfor %}</tbody></table></div>
+  {% endfor %}
+</section>
+{% if plan.frontier %}
+<section class="panel span-all">
+  <div class="panel__head"><h2>成本–剩料曲线</h2><span>每多剩料一档，最多能省多少</span></div>
+  <div class="scroll"><table><thead><tr><th>超出订单_kg</th><th>总成本_元</th><th>批数</th><th>未领批数</th><th>未领批号</th><th>Cu_pct</th><th>Zn_pct</th></tr></thead><tbody>{% for r in plan.frontier %}<tr><td>{{r['超出订单_kg']}}</td><td>{{r['总成本_元']}}</td><td>{{r['批数']}}</td><td>{{r['未领批数']}}</td><td title="{{r['未领批号']}}">{{r['未领批号']}}</td><td>{{r['Cu含量下界_pct']}}–{{r['Cu含量上界_pct']}}</td><td>{{r['Zn含量下界_pct']}}–{{r['Zn含量上界_pct']}}</td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% endif %}
+{% endif %}
+{% if plan.excluded %}
+<section class="panel span-all"><div class="panel__head"><h2>不可整批领用的料批</h2><span>{{plan.excluded|length}} 批</span></div>
+  <div class="scroll"><table><thead><tr><th>批号</th><th>原因</th></tr></thead><tbody>{% for r in plan.excluded %}<tr><td>{{r['批号']}}</td><td>{{r['原因']}}</td></tr>{% endfor %}</tbody></table></div></section>
+{% endif %}
+{% endblock %}

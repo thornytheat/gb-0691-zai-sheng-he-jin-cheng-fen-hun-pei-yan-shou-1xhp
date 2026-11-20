@@ -15,6 +15,7 @@
 | M5 不确定区间 | 运行不确定区间并复核证据 | `POST /api/m5`；`/work/5` | `app/modules/m5_uncertainty/rules.py` | `tests/test_m5.py` |
 | M6 验收对照 | 运行验收对照并复核证据 | `POST /api/m6`；`/work/6` | `app/modules/m6_acceptance/rules.py` | `tests/test_m6.py` |
 | M7 复配批次 | 运行复配批次并复核证据 | `POST /api/m7`；`/work/7` | `app/modules/m7_reblend/rules.py` | `tests/test_m7.py` |
+| M8 领料方案 | 选择整批领料组合并确认用量 | `POST /api/m8`；`/work/8` | `app/modules/m8_plan/rules.py`、`app/plan.py` | `tests/test_m8.py`、`tests/test_plan_api.py` |
 
 ## 陷阱登记
 
@@ -28,6 +29,10 @@
 | TRAP-15 | 吨与千克 | 静默覆盖或误计 | 显式裁决并保留证据 | `app/modules/m2_assay/rules.py` | `tests/test_m2.py::test_units` |
 | TRAP-19 | 批号元数据冲突优先 | 静默覆盖或误计 | 显式裁决并保留证据 | `app/modules/m3_recipe/rules.py` | `tests/test_m3.py::test_conflicting_lot_mass` |
 | TRAP-25 | 配方版本锁定 | 静默覆盖或误计 | 显式裁决并保留证据 | `app/modules/m3_recipe/rules.py` | `tests/test_m3.py::test_version_lock` |
+| TRAP-31 | 整批不拆包与超量 | 按比例凑料，多出上百公斤且退不掉 | 只枚举整批组合，并把超量与成本差并排给出 | `app/plan.py` | `tests/test_m8.py::test_plan_whole_lots_only` |
+| TRAP-32 | 缺价不可猜 | 用默认价凑方案 | 缺价整批列隔离，不进入方案 | `app/plan.py` | `tests/test_plan_api.py::test_plan_excluded_lot_without_price` |
+| TRAP-33 | 晚到化验触发重算 | 沿用旧用量验收 | 方案重算并标记须重确认，验收按确认用量重算 | `app/plan.py::examine` | `tests/test_plan_api.py::test_late_assay_marks_plan_stale` |
+| TRAP-34 | 重跑确认不得新增记录 | 每次确认插入新领料单 | 按订单幂等，原地更新并递增版本 | `app/store.py::confirm_requisition` | `tests/test_plan_api.py::test_reconfirm_after_late_assay_updates_single_record` |
 
 ## 对账规则
 

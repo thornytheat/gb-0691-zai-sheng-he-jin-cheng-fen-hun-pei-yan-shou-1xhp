@@ -3,7 +3,8 @@ import csv,io
 from app.errors import DomainError
 from app.reader import decode
 from app.pipeline import calculate
-from app.store import save, latest, history, review, get_run
+from app.store import save, latest, history, review, get_run, requisition, requisition_history
+from app.requisition import confirm, current
 from app.web import bp as web
 
 from app.modules.m1_receiving.handler import bp as bp1
@@ -13,6 +14,7 @@ from app.modules.m4_blend.handler import bp as bp4
 from app.modules.m5_uncertainty.handler import bp as bp5
 from app.modules.m6_acceptance.handler import bp as bp6
 from app.modules.m7_reblend.handler import bp as bp7
+from app.modules.m8_plan.handler import bp as bp8
 app=Flask(__name__)
 app.config['MAX_CONTENT_LENGTH']=5*1024*1024
 app.json.ensure_ascii=False
@@ -32,6 +34,7 @@ app.register_blueprint(bp4)
 app.register_blueprint(bp5)
 app.register_blueprint(bp6)
 app.register_blueprint(bp7)
+app.register_blueprint(bp8)
 @app.before_request
 def validate_request_object():
     if request.method!='POST': return None
@@ -52,10 +55,10 @@ def health(): return {'status':'ok'}
 @app.route('/api/run',methods=['POST'])
 def run():
     if request.files:
-        raw=request.files['file'].read();text=decode(raw)
+        raw=request.files['file'].read();text=decode(raw);payload={}
     else:
         payload=request.get_json(silent=True) or {};text=payload.get('csv')
-    return jsonify(save(calculate(text)))
+    return jsonify(save(calculate(text,order_kg=payload.get('order_kg'),batch=payload.get('batch'))))
 @app.route('/api/runs/<ident>')
 def run_detail(ident): return jsonify(get_run(ident))
 @app.route('/api/history')
@@ -66,6 +69,21 @@ def decide():
     try: version=int(body.get('revision',0))
     except (ValueError,TypeError): raise DomainError('VERSION','版本必须为整数')
     return jsonify(review(body.get('id'),version,body.get('decision')))
+@app.route('/api/requisition',methods=['POST'])
+def confirm_plan():
+    body=request.get_json(silent=True) or {}
+    run_id=body.get('id');option=body.get('option')
+    if not run_id or not isinstance(run_id,str): raise DomainError('REQUEST','缺少批次')
+    if not option or not isinstance(option,str): raise DomainError('REQUEST','缺少方案选项')
+    return jsonify(confirm(run_id,option))
+@app.route('/api/requisition/<order_id>')
+def requisition_detail(order_id):
+    run=get_run(request.args['run_id']) if request.args.get('run_id') else latest()
+    record=current(order_id,run)
+    if record is None: raise DomainError('NOT_FOUND','领料记录不存在',404)
+    return jsonify(record)
+@app.route('/api/requisitions')
+def requisition_list(): return jsonify(requisition_history())
 @app.route('/api/evidence.csv')
 def evidence():
     result=get_run(request.args['run_id']) if request.args.get('run_id') else (latest() or save(calculate()));out=io.StringIO(newline='')
@@ -73,8 +91,10 @@ def evidence():
     for index,stage in result['stages'].items():
         rows.extend({'阶段':index,**r} for r in stage['rows'])
     rows.extend({'阶段':'隔离',**r} for r in result['quarantine'])
+    record=current(result['plan']['order_id'],result) if result.get('plan') else None
+    if record: rows.extend({'阶段':'领料方案',**r} for r in record['rows'])
     fields=list(dict.fromkeys(['阶段','run_id','规则版本']+[k for r in rows for k in r]))
     writer=csv.DictWriter(out,fieldnames=fields);writer.writeheader()
     for row in rows: writer.writerow({'run_id':result['manifest']['run_id'],'规则版本':result['manifest']['rule_version'],**row})
-    return Response('\ufeff'+out.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename=evidence.csv'})
+    return Response('﻿'+out.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename=evidence.csv'})
 if __name__=='__main__': app.run(host='0.0.0.0',port=8000)
